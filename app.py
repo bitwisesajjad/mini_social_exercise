@@ -935,7 +935,7 @@ def moderate_content(content):
     moderated_words = []
     for word in content.split():
         if word.lower() in bad_words:
-            modified_word = '*' * len(word)
+            modified_word = '****'
             moderated_words.append(modified_word)
             score = 5
         else:
