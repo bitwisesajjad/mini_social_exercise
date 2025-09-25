@@ -931,9 +931,10 @@ def moderate_content(content):
             password: admin
     Then, navigate to the /admin endpoint. (http://localhost:8080/admin)
     """
+    bad_words = ['is', 'the']
     moderated_word = []
     for word in content.split():
-        if word.lower() in ['is', 'the']:
+        if word.lower() in bad_words:
             modified_word = word[0]+'*' * (len(word)-1 )
             moderated_words.append(modified_word)
             score = 5
