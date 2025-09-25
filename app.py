@@ -932,7 +932,7 @@ def moderate_content(content):
     Then, navigate to the /admin endpoint. (http://localhost:8080/admin)
     """
     bad_words = ['is', 'the']
-    moderated_word = []
+    moderated_words = []
     for word in content.split():
         if word.lower() in bad_words:
             modified_word = word[0]+'*' * (len(word)-1 )
