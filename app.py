@@ -916,7 +916,25 @@ def user_risk_analysis(user_id):
     
 # Task 3.3
 def moderate_content(content):
+<<<<<<< HEAD
     
+=======
+    """
+    Args
+        content: the text content of a post or comment to be moderated.
+        
+    Returns: 
+        A tuple containing the moderated content (string) and a severity score (float). There are no strict rules or bounds to the severity score, other than that a score of less than 1.0 means no risk, 1.0 to 3.0 is low risk, 3.0 to 5.0 is medium risk and above 5.0 is high risk.
+    
+    This function moderates a string of content and calculates a severity score based on
+    rules loaded from the 'censorship.dat' file. These are already loaded as TIER1_WORDS, TIER2_PHRASES and TIER3_WORDS. Tier 1 corresponds to strong profanity, Tier 2 to scam/spam phrases and Tier 3 to mild profanity.
+    
+    You will be able to check the scores by logging in with the administrator account:
+            username: admin
+            password: admin
+    Then, navigate to the /admin endpoint. (http://localhost:8080/admin)
+    """
+>>>>>>> fb53a7e390f74cb5976316503ee89f9db465c50e
     bad_words = ['is', 'the']
     moderated_words = []
     for word in content.split():
