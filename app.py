@@ -11,7 +11,16 @@ from datetime import datetime
 app = Flask(__name__)
 app.secret_key = '123456789' 
 DATABASE = 'database.sqlite'
-
+# These are the stop words that I use in the exerceise 3.3 when building a recommendation system.
+STOP_WORDS = {
+    'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from',
+    'has', 'he', 'in', 'is', 'it', 'its', 'of', 'on', 'that', 'the',
+    'to', 'was', 'will', 'with', 'i', 'me', 'my', 'you', 'your',
+    'this', 'but', 'what', 'when', 'where', 'who', 'we', 'they',
+    'she', 'her', 'him', 'them', 'their', 'or', 'if', 'so', 'there',
+    'have', 'had', 'can', 'do', 'does', 'am', 'been', 'being', 'not',
+    'just', 'like', 'get', 'got', 'very', 'much', 'more', 'about'
+}
 # Load censorship data
 # WARNING! The censorship.dat file contains disturbing language when decrypted. 
 # If you want to test whether moderation works, 
@@ -889,12 +898,170 @@ def recommend(user_id, filter_following):
     - http://www.configworks.com/mz/handout_recsys_sac2010.pdf
     - https://www.researchgate.net/publication/227268858_Recommender_Systems_Handbook
     """
+    import sqlite3
+    from collections import Counter
+    import re
+    
+    conn = sqlite3.connect(DATABASE)
+    # I use row_factory to access columns by name instead of index
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    # In this section we should check and if the filter_following is set to True, we should only 
+    # recommend posts for the users that the current user follows. However, if the filter is set to
+    # False, I recommend posts from all the users.
+    following_user_ids = []  
+    if filter_following:
+        # Get list of users that this user follows
+        cursor.execute("SELECT followee_id FROM follows WHERE follower_id = ? ", (user_id,))
+        following_user_ids = [row['followee_id'] for row in cursor.fetchall()]
+        
+        # If user doesn't follow anyone, I recommend posts from all users
+        if not following_user_ids:
+            filter_following = False
+    
+    #First, I should find all posts this user has liked/reacted to because these posts show 
+    # what content the user is interested in. It is simple, I get the unique posts a user has 
+    #reacted to. I say unique because a user may have multiple reactions to a single post.
+    cursor.execute("SELECT DISTINCT p.id, p.content FROM posts p JOIN reactions r ON p.id = r.post_id WHERE r.user_id = ?", (user_id,))
+    reacted_posts = cursor.fetchall()
+    
+    # In the following section, I loop through each of the post that the user has reacted to
+    # and convert the content of those posts to lowercase and remove the stop words such as 
+    # "the" or "but" or "an" and also remove the short words that have 1 or 2 character because
+    # they are less likely to have any meaningful significance.
+    # finally, after this processing, we get a list of more meaningful words like the following:
+    #       Input: "I love programming in Python"
+    #       After processing: ["love", "programming", "python"]
 
-    recommended_posts = {} 
+    all_words = []
+    for post in reacted_posts:
+        content = post['content'] 
+        # If there are posts with no content, I  skip them!   
+        if not content:
+            continue
+        
+        # This extracts the words and removes punctuation and numbers
+        words = re.findall(r'\b[a-z]+\b', content.lower())
+        
+        # Now I remove stop words and short words. Stop words are defined in STOP_WORDS
+        # set at the top of this file
+        meaningful_words = [
+            word for word in words 
+            if word not in STOP_WORDS and len(word) >= 2
+        ]
+        
+        # we now add these keywords to our collection
+        all_words.extend(meaningful_words)
+    
+    # Here I want to find the user's main interests based on the keyword frequency in the content
+    # of the posts they reacted to. If the user has no reactions, we should find something to show,
+    # so decided to show top 5 most popular posts. of course, i make sure the user's own posts are not
+    # shown to them even if they are among the top 5 posts. here is an example: 
+    #       Extracted keywords:["python", "python", "python", "coding", "data", "data"]
+    #       Frequency: python(3 times), data(2times), coding(1 times)
+    #       Top keywords: ["python", "data", "coding"]
+    #       Interpretation: User is interested in Python programming and data  
+    if not all_words:
+        if filter_following and following_user_ids:
+            # Only recommend from users the current user follows
+            placeholders = ','.join('?' * len(following_user_ids))
+            cursor.execute(f"SELECT p.*, COUNT(r.id) as reaction_count FROM posts p LEFT JOIN reactions r ON p.id = r.post_id WHERE p.user_id != ? AND p.user_id IN ({placeholders}) GROUP BY p.id ORDER BY reaction_count DESC LIMIT 5", [user_id] + following_user_ids)
+        else:
+            # Recommend popular posts from all users
+            cursor.execute("SELECT p.*, COUNT(r.id) as reaction_count FROM posts p LEFT JOIN reactions r ON p.id = r.post_id WHERE p.user_id != ? GROUP BY p.id ORDER BY reaction_count DESC LIMIT 5", (user_id,))
+        results = cursor.fetchall()
+        conn.close()
+        # Return full post objects
+        return results
+    
+    # Counter creates a dictionary: {"python": 3, "data": 2, "coding": 1}
+    word_counter = Counter(all_words)
+    
+    # Here I get top 15 most common words to create a diverse recommendation
+    top_keywords = [word for word, count in word_counter.most_common(15)]
+    
+    # Now, i find the posts that i can recommend. They should not be made by the user and 
+    # they should be new to user. Of course, if the filter_following is set to True, we should only 
+    # recommend posts from those this user is following and this will become another restricting factor
+    # in recommendation process.
+    if filter_following and following_user_ids:
+        # Only get posts from users we follow
+        placeholders = ','.join('?' * len(following_user_ids))
+        cursor.execute(f"SELECT p.id, p.content FROM posts p WHERE p.id NOT IN (SELECT post_id FROM reactions WHERE user_id = ?) AND p.user_id != ? AND p.user_id IN ({placeholders})", [user_id, user_id] + following_user_ids)
+    else:
+        # Get posts from all users
+        cursor.execute("SELECT p.id, p.content FROM posts p WHERE p.id NOT IN (SELECT post_id FROM reactions WHERE user_id = ?) AND p.user_id != ?", (user_id, user_id))
+    
+    candidate_posts = cursor.fetchall()
+    
+    # in this section, i create a scoring algorithm to find the best posts to recommend to the user. 
+    # i first extract the words from the candidate posts and check how many of the interest
+    # keywords are in those posts. For each matching, i give +1 score and the higher the accumulative 
+    # score is, the more interesting that post will probably be to the user. 
+    post_scores = []
+    for post in candidate_posts:
+        content = post['content']
+        # I skip posts with no content
+        if not content:
+            continue
+        
+        # This line extracts words from this candidate post
+        post_words = re.findall(r'\b[a-z]+\b', content.lower())
+        
+        # calculating the relevance and giving a score:
+        score = 0
+        for keyword in top_keywords:
+            if keyword in post_words:
+                score += 1
+        
+        # Only include posts with at least one keyword match
+        # Posts with score 0 are not relevant to user's interests
+        if score > 0:
+            post_scores.append((post['id'], score))
+    
+    # Here I sort scores which are the second element of the tuple using a lambda function and 
+    # sorting using the score which is the index 1. the reverse makes the highest score appear first.
+    post_scores.sort(key=lambda x: x[1], reverse=True)
+    
+    # Now, we can get top 5 recommendations as post IDs
+    recommended_post_ids = [post_id for post_id, score in post_scores[:5]]
+    
+    # If we have fewer than 5 recommendations, fill with popular posts to ensure we always
+    # return 5 recommendations when possible
+    if len(recommended_post_ids) < 5:
+        # Collect IDs of posts to exclude (already recommended or already reacted to)
+        excluded_ids = set(recommended_post_ids)
+        excluded_ids.update([post['id'] for post in reacted_posts])
+        
+        placeholders = ','.join('?' * len(excluded_ids)) if excluded_ids else '0'
+        
+        if filter_following and following_user_ids:
+            # Fill with popular posts from users we follow
+            following_placeholders = ','.join('?' * len(following_user_ids))
+            cursor.execute(f"SELECT p.id, COUNT(r.id) as reaction_count FROM posts p LEFT JOIN reactions r ON p.id = r.post_id WHERE p.id NOT IN ({placeholders}) AND p.user_id != ? AND p.user_id IN ({following_placeholders}) GROUP BY p.id ORDER BY reaction_count DESC LIMIT ? ", list(excluded_ids) + [user_id] + following_user_ids + [5 - len(recommended_post_ids)])
+        else:
+            # Fill with popular posts from all users
+            cursor.execute(f"SELECT p.id, COUNT(r.id) as reaction_count FROM posts p LEFT JOIN reactions r ON p.id = r.post_id  WHERE p.id NOT IN ({placeholders}) AND p.user_id != ? GROUP BY p.id ORDER BY reaction_count DESC LIMIT ? ", list(excluded_ids) + [user_id, 5 - len(recommended_post_ids)])
+        additional_posts = cursor.fetchall()
+        recommended_post_ids.extend([row['id'] for row in additional_posts])
+    
+    # Now fetch full post objects for the recommended post IDs
+    if recommended_post_ids:
+        placeholders = ','.join('?' * len(recommended_post_ids))
+        cursor.execute(f"""
+            SELECT * FROM posts 
+            WHERE id IN ({placeholders})
+        """, recommended_post_ids)
+        final_posts = cursor.fetchall()
+    else:
+        final_posts = []
+    
+    conn.close()
+    # Return full post objects (up to 5)
+    return final_posts[:5]
 
-    return recommended_posts;
-
-# Task 3.2
+# Task 3.2 =======================================================================
 def user_risk_analysis(user_id):
     """
     Args:
@@ -908,44 +1075,300 @@ def user_risk_analysis(user_id):
             password: admin
         Then, navigate to the /admin endpoint. (http://localhost:8080/admin)
     """
+    import sqlite3
+    from datetime import datetime
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
     
+    # First I need to get the user profile and the date that the suer joined the platform so 
+    # i have the bio and the age of the account. 
+    cursor.execute("SELECT profile, created_at FROM users WHERE id = ?", (user_id,))
+    user = cursor.fetchone()
+    
+    if not user:
+        conn.close()
+        return 0.0
+    
+    # Now, I get the bio for each user and then pass it through the moderation 
+    # module that I created in exdercise 3.1. This will help us calculate profile score.
+    profile_text = user['profile'] if user['profile'] else ''
+    _, profile_score = moderate_content(profile_text)
+    
+
+    # We do the same but this time we analyze the posts the user has created and finnaly calculate 
+    # the average score of all posts. Here i used the method "user_id =?" followed by (user_id,)
+    # to prevent sql injection, as instructed by the TA in exercise sessions. The same will be true
+    # about when I calculate the average score for the comments of this user. 
+    cursor.execute("SELECT content FROM posts WHERE user_id = ?", (user_id,))
+    posts = cursor.fetchall()
+    post_scores = []
+    for post in posts:
+        post_content = post['content'] if post['content'] else ''
+        _, post_score = moderate_content(post_content)
+        post_scores.append(post_score)
+    # now we should divide the scores of all posts by the number of the posts. 
+    average_post_score = sum(post_scores) / len(post_scores) if len(post_scores) > 0 else 0.0
+    
+
+    # In this step, I calculate the average score for the comments this user has created. 
+    # just like the process we had for the average post scores.
+    cursor.execute("SELECT content FROM comments WHERE user_id = ?", (user_id,))
+    comments = cursor.fetchall()
+    comment_scores = []
+    for comment in comments:
+        comment_content = comment['content'] if comment['content'] else ''
+        _, comment_score = moderate_content(comment_content)
+        comment_scores.append(comment_score)
+    average_comment_score = sum(comment_scores) / len(comment_scores) if len(comment_scores) > 0 else 0.0
+    
+
+    # Now that we have all the scores for profile (a.k.a Bio), comments and posts, 
+    # I calculate the weighted average according to the importance of each of these elements
+    # as I described before I provided the codes. We should divide the weighted sum by 5 to get the 
+    #weighted average. 
+    content_risk_score = ((profile_score * 1) + (average_post_score * 3) + (average_comment_score * 1)) / 5
+    
+    
+    # Now, we should apply the effect of age of the user's accound. Based on this age,
+    #  we impose different risk multipliers and the younger the account is, the higher this 
+    # age multiplier will be. By doing so, we are in fact more suspicious of younger 
+    # accounds and the more mature accounts are considered more legitimate and less suspicious.
+    # This is simply because spammers usually create an account and post many things 
+    # and when their violations are caught, they just create new accounds and this age 
+    # multiplier can help us catch them much faster because they will be flagged more often 
+    # than the mature ones. 
+    created_at_str = user['created_at']
+    try:
+        created_at = datetime.strptime(created_at_str, '%Y-%m-%d %H:%M:%S')
+    except (ValueError, TypeError):
+        created_at = datetime.now()
+    
+    current_time = datetime.now()
+    account_age_days = (current_time - created_at).days
+    
+    # Here we DEFINE the age multiplier. The accounts that are older than three month old (90 days)
+    # are not affected at all.
+    if account_age_days < 30:
+        age_multiplier = 1.5
+    elif account_age_days < 90:
+        age_multiplier = 1.2
+    else:
+        age_multiplier = 1.0
+    
+    #and now we APPLY it:
+    user_risk_score = content_risk_score * age_multiplier
+    
+    # ==========================================================================
+    # CUSTOM RISK MEASURE: NEGATIVE ENGAGEMENT ANALYSIS
+    # ==========================================================================
+    # My custom measure is "Negative engagement risk measure" and it analyzes how other users
+    # respond to the posts a user creates by giving their reactions. My idea was that sometimes
+    # content moderation cannot catch the more hidden profanity and spamming and it may fail 
+    # when it deals with more subtle profanity or rudeness. However, users almost always catch 
+    # these and react to them. By analyzing those reactions, we can identify even the most
+    # subtle and hidden toxic materials on the platform.
+    #
+    # I assigned a numerical weight to each reaction type and using these weights I quantifies the user's received reactions from other users.  here are the summary of the weights:
+    #  - "Angry" is -1 because it means the person who left an angry reaction is showing strong negative emotion. 
+    #  - "Sad" is 0 because it is emotionally ambiguous and it can simply show that the user is empathizing with the post. 
+    #  - all the happy reactions such as Like, Love, haha, Wow will receive a +1 because they show that the users are appreciating the post and it is less likely to be a bad or violating one. 
+    #For each user, I collect all the reactions on their posts and calculate their weighted average. Then, I divide this sum by the total number of reactions to get a normalized ratio that will range between -1 and +1. This "sentiment ratio" shows the average sentiment of the whole community of users interacting with that user's post on our platform. 
+    #Finally, I apply risk penalty based on the user's sentiment ratio. a ratio under -0.3 means almost 65 to 70 percent of the users are not happy with the posts and this can be a good trigger.  -0.3 to -0.5 is considered moderate and receives +0.3 to their risk score.  is the sentiment ratio is between -0.5 and -0.7 i add 0.5 to their risk score and if the sentiment ratio is less than -0.7 i add 1 to their risk score. 
+    
+    cursor.execute("SELECT r.reaction_type FROM reactions r JOIN posts p ON r.post_id = p.id WHERE p.user_id = ?", (user_id,))
+    reactions = cursor.fetchall()
+    sentiment_score = 0
+    total_reactions = 0
+    
+    for reaction in reactions:
+        reaction_type = reaction['reaction_type']
+        total_reactions += 1
+        
+        if reaction_type == 'angry':
+            sentiment_score += -1  
+        elif reaction_type == 'sad':
+            sentiment_score += 0 
+        elif reaction_type in ['like', 'haha', 'love', 'wow']:
+            sentiment_score += 1 
+        else:
+            sentiment_score += 0 #this is for unknown ractions. We can add more reactions if 
+            # we see that they are used on the platform. For the sake of simplicity and 
+            # merely showing how this works, i have only considered the reactions that we have 
+            # on the platform now. 
+    
+    # For negative sentiment penalty, I first check if teh user has any reactions or not. 
+    # I will apply this only if user has received reactions.
+    if total_reactions > 0:
+        sentiment_ratio = sentiment_score / total_reactions
+        
+        # ANow we apply penalty for negative sentiment based on the description I gave above.
+        if sentiment_ratio < -0.3:
+            if sentiment_ratio < -0.7:
+                user_risk_score += 1.0
+            elif sentiment_ratio < -0.5:
+                user_risk_score += 0.5
+            else:
+                user_risk_score += 0.3
+    # =============END OF CUSTOM RISK MEASURE ==================================
+
+    # Cap at 5.0
+    if user_risk_score > 5.0:
+        user_risk_score = 5.0
+    
+    conn.close()
+    return user_risk_score
+
+# Now, I should create the classification of the user based on the score I calculated
+# in the previous section. 
+# I call the users with a risk score of less than 1, as LOW RISK users. Users with risk scores of 
+# 1 to 3, are MEDIUM RISK, and those with a risk score of between 3 to 4.5 are HIGH RISK.
+# Finally, those whose score is more than 4.5 are catagorized as DANGEROUS! 
+def classify_risk(score):
+    if score < 1.0:
+        return "Low risk"
+    elif score < 3.0:
+        return "Medium risk"
+    elif score < 4.5:
+        return "High risk"
+    else:
+        return "Dangerous!"
     score = 0
 
     return score;
 
     
-# Task 3.3
+# Task 3.3 =======================================================================
+
 def moderate_content(content):
-<<<<<<< HEAD
+    if not content or content.strip()== '':
+        return content, 0
     
-=======
-    """
-    Args
-        content: the text content of a post or comment to be moderated.
+    # If content is None, empty string "", or just whitespace " ", return it as it is and
+    # give a score of 0. Of course I should admit that the chance of somebody posting an empty
+    #post is None! but to just consider all the possible scenarios, here I considered it. 
+    score = 0
+    moderated = content 
+
+    # TIER 1 ---------------------------------------------------------------
+    content_lower=content.lower()
+    for bad_word in TIER1_WORDS:
         
-    Returns: 
-        A tuple containing the moderated content (string) and a severity score (float). There are no strict rules or bounds to the severity score, other than that a score of less than 1.0 means no risk, 1.0 to 3.0 is low risk, 3.0 to 5.0 is medium risk and above 5.0 is high risk.
+        # Here we need to make sure that the Tier1 words are used alone and separately
+        # in the content because othersise we may wrongly flag a word that is 
+        # ok and not rude. 
+        # The pattern I used is:    r'\bhell\b'                       
+        # This will make sure the words are considered separately. 
+        # "go to hell" : it is not Ok because we have the word "hell" and must be moderated. 
+        # However, "hello there" should be left untouched even though there is a "hell" in hello!
+
+        pattern = r'\b' + re.escape(bad_word.lower()) + r'\b'
+        if re.search(pattern, content_lower):
+            return "[content is removed due to severe violation]", 5
     
-    This function moderates a string of content and calculates a severity score based on
-    rules loaded from the 'censorship.dat' file. These are already loaded as TIER1_WORDS, TIER2_PHRASES and TIER3_WORDS. Tier 1 corresponds to strong profanity, Tier 2 to scam/spam phrases and Tier 3 to mild profanity.
+    # TIER 2 ---------------------------------------------------------------
+    # For Tier 2 because we are checking the phrases, and not the words, 
+    # and therefore it is irrelevant because the chance of having a complete phrase in a 
+    # word is zero!
+    for spam_phrase in TIER2_PHRASES:
+        if spam_phrase.lower() in content_lower:
+            return "[content removed due to spam/scam policy]", 5
     
-    You will be able to check the scores by logging in with the administrator account:
-            username: admin
-            password: admin
-    Then, navigate to the /admin endpoint. (http://localhost:8080/admin)
-    """
->>>>>>> fb53a7e390f74cb5976316503ee89f9db465c50e
-    bad_words = ['is', 'the']
-    moderated_words = []
-    for word in content.split():
-        if word.lower() in bad_words:
-            modified_word = '****'
-            moderated_words.append(modified_word)
+    
+    # TIER 3 ---------------------------------------------------------------
+    words = moderated.split()
+    cleaned_words = []
+    for word in words:
+        word_clean = re.sub(r'[^\w]', '', word.lower())
+        word_found = False
+        for profane_word in TIER3_WORDS:
+            
+            # Here again we need to make sure the words are separately and not a part of 
+            # another word. This is just like the Tier 1 so I do not exxplain repeatedly. 
+            pattern = r'\b' + re.escape(profane_word.lower()) + r'\b'
+            if re.search(pattern, word_clean):
+                
+                # Here I find the bad words that are in Tier 3, I do not remove
+                # the whole content but put asterisks instead of the word. So, that is why
+                # in the line bellow i calculated the length of the bad word that we have identified
+                # and replaced the word buy the same number of asterisks.
+                masked = '*' * len(word)
+                cleaned_words.append(masked)
+                score += 2
+                word_found = True
+                break
+        
+        # If no profanity was found in this word, we do not change the word and leave it as
+        #it is and go to the next word. 
+        if not word_found:
+            cleaned_words.append(word)
+    
+    # Finally, using the following join operation, I put all the words that were
+    # were either moderated or left untouched next to eachother to make the moderated sentence. 
+    moderated = ' '.join(cleaned_words)
+    
+
+    # URL DETECTION ---------------------------------------------------------------
+    # In order to detect the different types of urls i defined the following pattern:
+    # First I had to consider both http and https so i used this:
+    # https?://[^\s]+
+    # then  
+    # using  www\.[^\s]+   I create a pattern for www. followed by one or more non space
+    # characters.
+    # In the end, [a-zA-Z0-9-]+\.(com|org|net|edu|gov|io)[^\s]*   is the pattern for the
+    # domain name and the final domain. I put some most common domains. But I know that 
+    # more domains should be included here. 
+    url_pattern = r'https?://[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(com|org|net|edu|gov|io)[^\s]*'
+    urls_found = re.findall(url_pattern, moderated)
+    url_count = len(urls_found)
+    moderated = re.sub(url_pattern, '[link removed]', moderated, flags=re.IGNORECASE)
+    score += url_count * 2
+
+    # --------------------------------------------------------------------------
+    # One more moderation measure: Mention spam  -------------------------------
+    # --------------------------------------------------------------------------
+    # This is my custom moderation measure. It detects too much use of mentions 
+    # in a single post and moderates it.
+    #
+    # Why is this a problem?
+    # - Spammers mention many users to appear in their notifications which is a violation.
+    # - Spammers bypass URL filters by using mentions and attracting people to their profile
+    # - This annoys mentioned users who get unwanted notifications
+    # - It shows some sort of marketing behavior that is intrusive. 
+    #
+    # Threshold: 5 mentions or more
+    # Normal group conversations might mention up to 3 to 4 people
+    # So: "Hey @Sajjad and @Atif, check this out" (2 mentions = OK)
+    # 
+    # More than 4 mentions is too much and it is suspicious
+    # - So: "@user1 @user2 @user3 @user4 @user5 @user6 BUY NOW" (6 mentions = not OK = SPAM!)
+    #
+    # Scoring:
+    # - I add 2 points to be consistent with other moderation rules
+    # - I DON'T remove the mentions (users can see who was mentioned)
+    # - The increased score flags the post for admin to review in order to make sure
+    # the user is spamming or it was just an honest poor taste in mentioning!
+    # --------------------------------------------------------------------------
+    
+    # regex pattern to match @mentions such as @sajjad, @user123, @sajjad_ghaemi, @teammarketing
+    mention_pattern = r'@\w+'
+    
+    # Here we should find all @mentions in the content and return
+    #  a list like: ['@sajjad', '@aku', '@daniel']
+    mentions = re.findall(mention_pattern, moderated)
+    if len(mentions) >= 5:
+        score += 2
+    
+    # Before returning, we need to ensure the score doesn't exceed the maximum score of 5
+    # because he risk scoring system uses 0-5 scale (defined in rules) and other parts
+    # of the application expect scores less than or equal to 5.
+    # I first tried to stop counting when a person reaches 5, but then realized that it 
+    # is much nicer to count everything so when in the future the maximum changes, we can 
+    # easily change the following two lines and we will be good to go!
+        if score > 5:
             score = 5
-        else:
-            moderated_words.append (word)
-    moderated_content = ' '.join(moderated_words)
-    return moderated_content, score
+
+    return moderated, score
 
 
 
