@@ -1,0 +1,47 @@
+dicovered topics:
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+TOPIC 1:
+0.029*"bit" + 0.026*"youre" + 0.023*"isnt" + 0.019*"deeper" + 0.016*"everything" + 0.012*"might" + 0.012*"sometimes" + 0.012*"need" + 0.011*"wild" + 0.011*"lets"
+
+TOPIC 2:
+0.027*"kindness" + 0.024*"bigger" + 0.016*"impact" + 0.015*"specific" + 0.014*"kind" + 0.014*"change" + 0.013*"ignore" + 0.012*"picture" + 0.012*"important" + 0.010*"positivity"
+
+TOPIC 3:
+0.033*"people" + 0.029*"sometimes" + 0.019*"important" + 0.016*"might" + 0.016*"health" + 0.015*"mental" + 0.015*"youre" + 0.013*"everyone" + 0.013*"need" + 0.013*"point"
+
+TOPIC 4:
+0.030*"post" + 0.023*"amazing" + 0.020*"sharing" + 0.019*"keep" + 0.016*"hit" + 0.016*"reading" + 0.015*"thanks" + 0.015*"remember" + 0.014*"love" + 0.014*"little"
+
+TOPIC 5:
+0.029*"new" + 0.028*"tried" + 0.019*"remember" + 0.012*"ended" + 0.012*"amazing" + 0.012*"similar" + 0.012*"last" + 0.011*"cooking" + 0.011*"sounds" + 0.010*"today"
+
+TOPIC 6:
+0.070*"maybe" + 0.024*"seriously" + 0.023*"time" + 0.021*"youre" + 0.017*"next" + 0.017*"sure" + 0.016*"lets" + 0.015*"real" + 0.014*"try" + 0.013*"right"
+
+TOPIC 7:
+0.019*"sounds" + 0.019*"totally" + 0.017*"keep" + 0.015*"good" + 0.014*"love" + 0.014*"youre" + 0.013*"agree" + 0.012*"best" + 0.012*"enough" + 0.012*"time"
+
+TOPIC 8:
+0.021*"fashion" + 0.017*"project" + 0.016*"time" + 0.015*"diy" + 0.011*"new" + 0.011*"spent" + 0.011*"shelter" + 0.010*"let" + 0.010*"hey" + 0.009*"volunteering"
+
+TOPIC 9:
+0.018*"curious" + 0.017*"read" + 0.016*"break" + 0.016*"mind" + 0.015*"story" + 0.015*"book" + 0.014*"change" + 0.014*"energy" + 0.012*"debate" + 0.011*"news"
+
+TOPIC 10:
+0.039*"lets" + 0.036*"real" + 0.033*"need" + 0.022*"great" + 0.022*"change" + 0.020*"issues" + 0.019*"agree" + 0.018*"totally" + 0.018*"kindness" + 0.018*"focus"
+
+
+Popularity of topics:
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+1. Topic 4: 1725 documents (24.3%)
+2. Topic 6: 967 documents (13.6%)
+3. Topic 3: 865 documents (12.2%)
+4. Topic 7: 753 documents (10.6%)
+5. Topic 5: 717 documents (10.1%)
+6. Topic 10: 597 documents (8.4%)
+7. Topic 1: 540 documents (7.6%)
+8. Topic 8: 365 documents (5.1%)
+9. Topic 2: 309 documents (4.4%)
+10. Topic 9: 258 documents (3.6%)
