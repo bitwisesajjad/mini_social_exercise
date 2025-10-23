@@ -182,3 +182,7 @@ cython_debug/
 
 **/**.DS_Store
 app_exercise_solved.py
+lda_model_10_topics.model
+lda_dictionary.dict
+*.model
+*.dict
