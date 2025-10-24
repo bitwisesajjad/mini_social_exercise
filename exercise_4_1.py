@@ -1,5 +1,5 @@
 
-## Exercise 4.1: Topic Modeling with LDA ##
+## Exercise 4.1:Topic modeling with LDA ##
 
 import sqlite3
 import re
@@ -35,10 +35,10 @@ STOP_WORDS = {
 }
 
 
-# STEP 1: Connect to Database and Extract Text Data
+#Connecting to database 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-print("STEP 1: Extracting data from database")
+print("Extracting data from database")
 # .......................................
 
 # First I connect to the database, and since these steps are already explained in the previous exercises, i won't go
@@ -49,11 +49,11 @@ print("STEP 1: Extracting data from database")
 DATABASE = 'database.sqlite'
 conn = sqlite3.connect(DATABASE)
 cursor = conn.cursor()
-cursor.execute("SELECT id, content FROM posts WHERE content IS NOT NULL")
+cursor.execute("SELECT id, content from posts where content IS NOT NULL")
 posts = cursor.fetchall()
 
 #Now we do the same for the comments and get all the comments as well. 
-cursor.execute("SELECT id, content FROM comments WHERE content IS NOT NULL")
+cursor.execute("select id, content from comments where content IS NOT NULL")
 comments = cursor.fetchall()
 conn.close()
 
@@ -63,9 +63,9 @@ print(f"✓ found {len(comments)} comments and got their content too")
 print(f"✓ Now i have to analyze {len(posts) + len(comments)} contents.")
 print()
 
-# STEP 2: Prepare Text Data
+#Preparing texts
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-print ("step 2: Preparing text data ...")
+print ("Preparing text data ...")
 # Here, i have to combine all text content into one list and each item in this list is the content of either a post or a comment
 documents = []
 ## first I start with poosts and add them to the document
@@ -77,29 +77,26 @@ for comment_id, content in comments:
     if content:
         documents.append(content)
 
-# STEP 3: Text Preprocessing (Cleaning and Tokenization)
+#Text preprocessing (We should do some cleaning and create tokens)
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-print ("step 3 : Text preprocessing ...")
+print ("Text preprocessing ...")
 def preprocess_text(text):
-    """
-    Clean and prepare text for LDA analysis.
     
-    Steps:
-    1. Convert to lowercase (so "Python" and "python" are treated the same)
-    2. Remove URLs (they don't help with topics)
-    3. Remove special characters and numbers (keep only letters)
-    4. Split into individual words (tokenization)
-    5. Remove stop words (common words like "the", "is")
-    6. Remove very short words (less than 3 characters)
-    
-    Example:
-        Input: "I'm running to the store with my cats!"
-        Output: ["running", "store", "cats"]
-    """
+    #Before performing LDA analysis, I have to do some cleaning and preparation of the text data in order to get
+    # more accurate results in the topic modeling stage. First, the preprocessing was performed by turning all text to lowercase
+    # in order to make sure that words such as "Python" and "python" are considered and processed as the same words. 
+    #Then, URLs are removed because they do not add meaningful information in the process of topic modeling. 
+    # Then i remove special characters and numbers because just like the urls, they don't add any value to the topic modelling.
+    # in fact, we only keep alphabetic content in contents of posts and comments. After that, text must be tokenized, 
+    # which means the splitting of text into individual words for easier analysis.
+
+     #After tokenization, common stop words like "the" and "is" should be removed because they add minimum value to the process in temrs of 
+     # meaning of sentences. Very short words, usually less than three characters, are also ignored in order to reduce the noise in the data set. This means that 
+     # a sentence like "I am running to that store in Oulu" would be reduced to the list ["running", "that" ,"store", "Oulu"], which are the words
+     # that are most useful in topic modeling. 
     
     # converting to lowercase
     text = text.lower()
-    
     #removing URLs
     text = re.sub(r'http\S+|www\S+', '', text)
      #deleting special characters and numbers, keep only letters and spaces
@@ -136,9 +133,9 @@ for i, doc in enumerate(documents):
 print(f"✓ Preprocessing complete!")
 print(f"✓ We have now {len(processed_documents)} to create a dictionary.")
 
-# STEP 4: Create dictionary and corpus
+# dictionary and corpus
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-print("STEP 4: creating dictionary and corpus for LDA ...")
+print("creating dictionary and corpus for LDA ...")
 
 #$# creating a dictionary
 dictionary = corpora.Dictionary(processed_documents)
@@ -160,7 +157,7 @@ print(f"✓ We have a corpus with {len(corpus)} documents")
 print("STEP 5: Training LDA model to find 10 topics")
 print("  Number of topics: 10")
 print("  Passes: 15")
-print("This will take a few minutes... Finish that coffee")
+print("This will take a few minutes... Finish that coffee...")
 
 lda_model = LdaModel(
     corpus=corpus,
@@ -226,14 +223,14 @@ for rank, (topic_id, count) in enumerate(sorted_topics, 1):
 
 # Saving results
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-print("Saving results")
+print("saving results ...")
 
 # save the model (so i can load it later without having to train everything again)
 lda_model.save('lda_model_10_topics.model')
-print("✓ Model saved as 'lda_model_10_topics.model'")
+print("Model saved as 'lda_model_10_topics.model'")
 # saving the dictionary
 dictionary.save('lda_dictionary.dict')
-print("✓ Dictionary saved as 'lda_dictionary.dict'")
+print("Dictionary saved as 'lda_dictionary.dict'")
 
 # save human-readable results to a text file
 with open('topic_analysis_results.txt', 'w', encoding='utf-8') as f:
