@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- dynamic title based on which topic is being viewed -->
+    <title>{{ topic_name }} - Mini Social</title>
+    <style>
+        /* 
+          basics
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: #f0f2f5;  /* light gray background */
+            padding-top: 60px;     /* space for fixed navbar */
+        }
+
+        /* 
+           navigation bar
+           Same styling as trending.html
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>. */
+        
+        nav {
+            background: white;
+            padding: 15px 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        nav a {
+            color: #1877f2;
+            text-decoration: none;
+            margin: 0 15px;
+            font-weight: 500;
+        }
+
+        nav a:hover {
+            text-decoration: underline;
+        }
+
+        /* 
+           main container
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+        
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        /* 
+           back link
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+        
+        /* link to go back to trending page */
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #1877f2;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        /* 
+           page header
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+        
+        .header {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            color: #1c1e21;
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: #65676b;  /* medium gray */
+            font-size: 14px;
+        }
+
+        /* 
+           post card
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+        
+        /* individual post container */
+        .post {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        /* 
+           post header (username and timestamp)
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+        
+        .post-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        /* username in bold */
+        .username {
+            font-weight: 600;
+            color: #1c1e21;
+            margin-right: 8px;
+        }
+
+        /* timestamp in lighter color */
+        .timestamp {
+            color: #65676b;
+            font-size: 13px;
+        }
+
+        /* 
+           post content
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+        
+        /* the actual text of the post */
+        .post-content {
+            color: #1c1e21;
+            font-size: 15px;
+            line-height: 1.5;     /* spacing between lines */
+            margin-bottom: 12px;
+        }
+
+        /* 
+           post statistics(reactions and comments)
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+        
+        .post-stats {
+            display: flex;
+            gap: 20px;            /* space between stats */
+            padding-top: 12px;
+            border-top: 1px solid #e4e6eb;  /* divider line */
+            color: #65676b;
+            font-size: 14px;
+        }
+
+        /* individual stat (e.g., "5 reactions") */
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        /* the number part (highlighted) */
+        .stat-number {
+            color: #1877f2;  /* blue */
+            font-weight: 600;
+        }
+
+        /* 
+           no post message
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+        
+        /* shown when topic has no posts */
+        .no-posts {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            text-align: center;
+            color: #65676b;
+        }
+
+        /* 
+           emoji style
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+        
+        .emoji {
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 
+         navigation bar
+         >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> -->
+    <nav>
+        <div>
+            <a href="/">Mini Social</a>
+            <a href="/feed">Feed</a>
+            <a href="/trending">🔥 Trending</a>
+        </div>
+        <div>
+            <span>Hello, {{ session.username }}!</span>
+            <a href="/logout">Logout</a>
+        </div>
+    </nav>
+
+    <!-- 
+         main content
+         >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> -->
+    <div class="container">
+        
+        <!-- back link to return to trending page -->
+        <a href="/trending" class="back-link">← Back to Trending</a>
+
+        <!-- page header showing which topic we're viewing -->
+        <div class="header">
+            <!-- topic_name comes from Flask route, e.g. "Mental Health" -->
+            <h1>{{ topic_name }}</h1>
+            <p>Recent posts from the past week</p>
+        </div>
+        
+        {% if posts %}
+            
+            {% for post in posts %}
+            <div class="post">
+                
+                <div class="post-header">
+                    <span class="username">{{ post.username }}</span>
+                    
+                    <span class="timestamp">• {{ post.created_at }}</span>
+                </div>
+                
+                <!-- post content (the actual text) -->
+                <!-- post.content is the main text of the post -->
+                <div class="post-content">
+                    {{ post.content }}
+                </div>
+                
+                <div class="post-stats">
+                    
+                    <!-- reaction count -->
+                    <!-- post.reaction_count comes from subquery in SQL -->
+                    <div class="stat">
+                        <span class="emoji">❤️</span>
+                        <span class="stat-number">{{ post.reaction_count }}</span> reactions
+                    </div>
+                    
+                    <!-- comment count -->
+                    <!-- post.comment_count comes from subquery in SQL -->
+                    <div class="stat">
+                        <span class="emoji">💬</span>
+                        <span class="stat-number">{{ post.comment_count }}</span> comments
+                    </div>
+                    
+                </div>
+            </div>
+            {% endfor %}
+            
+        {% else %}
+            <!-- no posts found for this topic -->
+            <div class="no-posts">
+                <h2>No posts found</h2>
+                <p>No recent posts for this topic</p>
+            </div>
+        {% endif %}
+        
+    </div>
+</body>
+</html>

@@ -8,6 +8,11 @@ import hashlib
 import re
 from datetime import datetime
 
+# imports for flast route
+from flask import render_template, redirect, url_for, session, flash
+from datetime import datetime, timedelta
+from collections import defaultdict
+
 app = Flask(__name__)
 app.secret_key = '123456789' 
 DATABASE = 'database.sqlite'
@@ -103,6 +108,240 @@ REACTION_EMOJIS = {
 }
 REACTION_TYPES = list(REACTION_EMOJIS.keys())
 
+
+#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+#>>>>>>>>>>>>>>> Trending algorithm >>>>>>>>>>>>>>>>>
+
+
+#Trending Topics Algorithm for Mini Social
+#This part contains the core algorithm and helper functions for identifying
+#and displaying trending topics on the platform.
+
+#The algorithm works in three main steps. First, it classifies posts into topics using keyword matching.
+#Then it calculate engagement metrics for each topic and finally it ranks topics by a weighted trending score
+
+from datetime import datetime, timedelta
+from collections import defaultdict
+import re
+
+# TOPIC DEFINITIONS
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# These are the 10 topics found in Exercise 4.1 using LDA. Each topic has a name and some keywords that 
+# help identify posts that belong to it
+TOPICS = {
+    0:{'name': 'Casual Conversation', 'keywords': ['youre', 'maybe', 'bit', 'seriously', 'people']},
+    1:{'name': 'Kindness & Impact', 'keywords': ['kindness', 'bigger', 'impact', 'specific', 'kind']},
+    2:{'name': 'Mental Health', 'keywords': ['people', 'sometimes', 'important', 'health', 'mental']},
+    3:{'name': 'Social Engagement', 'keywords': ['post', 'amazing', 'sharing', 'keep', 'hit']},
+    4:{'name': 'Personal Experiences', 'keywords': ['new', 'tried', 'remember', 'ended', 'cooking']},
+    5:{'name': 'Social Issues', 'keywords': ['lets', 'real', 'need', 'great', 'change']},
+    6:{'name': 'Deep Thoughts', 'keywords': ['bit', 'deeper', 'everything', 'might', 'sometimes']},
+    7:{'name': 'DIY & Creative', 'keywords': ['fashion', 'project', 'diy', 'new', 'volunteering']},
+    8:{'name': 'Reading & News', 'keywords': ['curious', 'read', 'break', 'story', 'book', 'news']},
+    9:{'name': 'Agreement & Positivity', 'keywords': ['lets', 'real', 'great', 'change', 'kindness']}
+}
+
+# STOP WORDS
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# Common English words that don't help with topic classification We remove these during text 
+# preprocessing to focus on meaningful words This is the same list used in Exercise 4.1
+STOP_WORDS = {
+    'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', "you're", "you've",
+    "you'll", "you'd", 'your', 'yours', 'yourself', 'yourselves', 'he', 'him', 'his',
+    'himself', 'she', "she's", 'her', 'hers', 'herself', 'it', "it's", 'its', 'itself',
+    'they', 'them', 'their', 'theirs', 'themselves', 'what', 'which', 'who', 'whom',
+    'this', 'that', "that'll", 'these', 'those', 'am', 'is', 'are', 'was', 'were', 'be',
+    'been', 'being', 'have', 'has', 'had', 'having', 'do', 'does', 'did', 'doing', 'a',
+    'an', 'the', 'and', 'but', 'if', 'or', 'because', 'as', 'until', 'while', 'of', 'at',
+    'by', 'for', 'with', 'about', 'against', 'between', 'into', 'through', 'during',
+    'before', 'after', 'above', 'below', 'to', 'from', 'up', 'down', 'in', 'out', 'on',
+    'off', 'over', 'under', 'again', 'further', 'then', 'once', 'here', 'there', 'when',
+    'where', 'why', 'how', 'all', 'both', 'each', 'few', 'more', 'most', 'other', 'some',
+    'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 's',
+    't', 'can', 'will', 'just', 'don', "don't", 'should', "should've", 'now', 'd', 'll',
+    'm', 'o', 're', 've', 'y', 'get', 'got', 'like', 'also', 'would', 'could', 'going',
+    'know', 'think', 'one', 'much', 'even', 'many', 'way', 'see', 'really', 'something',
+    'make', 'made', 'want', 'well', 'still', 'back'
+}
+
+
+# TEXT PREPROCESSING FUNCTION
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+def preprocess_text(text):
+   # Here i use the same preprocesing i dused in exerceise 4.1 in order to prepare the texts for topic classification
+   # I first convert them to lowercase, remove the urls and special characters and numners and then split them into 
+   # individual words that we call tokens. finally, we remove the stopwords and only keep words with more than 2 characters.
+    
+    # I convert everything to lowercase "Hello World" becomes "hello world"
+    text = text.lower()
+    
+    # I remove URLs using regex: both http://... and www... patterns re deleted
+    text = re.sub(r'http\S+|www\S+', '', text)
+    
+    # i remove everything except letters and spaces
+    # "hello123 world!" becomes "hello world"
+    text = re.sub(r'[^a-z\s]', '', text)
+    # split text into individual words
+    # "hello world" becomes ["hello", "world"]
+    tokens = text.split()
+    # keep only meaningful words (not stop words, length >= 3)
+    processed = []
+    for token in tokens:
+        # skip stop words 
+        if token in STOP_WORDS:
+            continue 
+    # skip very short words
+        if len(token) < 3:
+            continue  
+        processed.append(token)
+    return processed
+
+# TOPIC CLASSIFICATION FUNCTION
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+def classify_post_topic(content):
+    
+    # Here we determine which topic every post belongs to. We do this based on keyword matchin. 
+    # First I preprocess the content of the post and then for each topic, i cound how many keywords appear
+    #in the post. From what we get, we can easily catagorize each post based on the most keyword matches.
+    # finally, I also consider a situation that there is a post that doesn't match any topic. 
+    # clean the text
+    tokens = preprocess_text(content)
+    
+    # a sentence needs at least 2 words to make a reasonable classification
+    if len(tokens) < 2:
+        return None
+    
+    # I have to count keyword matches for each topic
+    topic_scores = {}
+    
+    for topic_id, topic_data in TOPICS.items():
+        keywords = topic_data['keywords']
+        score = sum(1 for token in tokens if token in keywords)
+        topic_scores[topic_id] = score
+    
+    # now I find the topic with the highest score
+    max_score = max(topic_scores.values())
+    
+    # I can only classify if I find at least one keyword match
+    if max_score > 0:
+        return max(topic_scores.items(), key=lambda x: x[1])[0]
+    return None
+
+# MAIN TRENDING ALGORITHM >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+def get_trending_topics(days=7, top_n=5):
+    # Here I gfind the top 5 rending topics in the past 7 days. to do so, I follow this process:
+    # First I quesry the database and find the posts from past 7 days, and classify them into topics. 
+    # For all the topics, I count the number of posts, their reactions, and total number fo comments.
+    # In the next step, I have a trending score that is calculated using a weighted formula. Now, I just have to 
+    # rank the topics based on their score and return the top 5. 
+    ## In calculating trending score, I give a weight of 1 to posts, a weight of 2 to reactions and comments get a weight of 
+    # 3 because they show the most active engagement with content on soicail media. Many people will passively
+    # like a post, but only the posts that receive the most comments are actually popular.
+    
+    db = get_db()
+    cutoff_date = datetime.now() - timedelta(days=days)
+    
+    # query: I get all posts created after the cutoff date
+    posts = db.execute("select id, content, created_at from posts where created_at >= ? order by created_at DESC", (cutoff_date,)).fetchall()
+    
+    # data structure to organize information by topic
+    topic_data = defaultdict(lambda: {
+        'posts': [],           # list of post objects
+        'post_ids': [],        # list of post IDs for querying
+        'total_reactions': 0,  # count of reactions
+        'total_comments': 0 }) # count of comments
+    
+    # classifying each post and organize by topic
+    for post in posts:
+        topic_id = classify_post_topic(post['content'])        
+        if topic_id is not None:
+            topic_data[topic_id]['posts'].append(post)
+            topic_data[topic_id]['post_ids'].append(post['id'])
+    
+    #  calculating engagement metrics for each topic
+    for topic_id in topic_data.keys():
+        # get all post IDs for this topic
+        post_ids = topic_data[topic_id]['post_ids']
+        # Now I create SQL placeholders for IN clause: if post_ids = [1, 2, 3], placeholders = "?,?,?"
+        placeholders = ','.join('?' * len(post_ids))      
+        # query: count total reactions for all posts in this topic
+        reactions = db.execute(f"select count(*) as count from reactions where post_id IN ({placeholders})", post_ids).fetchone()
+        
+        # store reaction count (or 0 if None)
+        topic_data[topic_id]['total_reactions'] = reactions['count'] if reactions else 0
+        
+        # query: count total comments for all posts in this topic
+        comments = db.execute(f"select count(*) as count from comments where post_id IN ({placeholders})", post_ids).fetchone()
+        
+        # store comment count (or 0 if None)
+        topic_data[topic_id]['total_comments'] = comments['count'] if comments else 0
+    
+    # step 3: calculate trending scores and prepare results
+    trending_topics = []
+    
+    for topic_id, data in topic_data.items():
+        # skip topics with no posts
+        if not data['posts']:
+            continue
+        
+        # extract metrics
+        post_count = len(data['posts'])
+        reactions = data['total_reactions']
+        comments = data['total_comments']
+        
+        # calculate trending score using weighted formula that I explained at the beggining of this process.
+        trending_score = (post_count * 1.0) + (reactions * 2.0) + (comments * 3.0)
+        
+        #the result objects for this topic
+        trending_topics.append({
+            'topic_id': topic_id,
+            'topic_name': TOPICS[topic_id]['name'],
+            'keywords': TOPICS[topic_id]['keywords'],
+            'post_count': post_count,
+            'total_reactions': reactions,
+            'total_comments': comments,
+            'trending_score': trending_score,
+            'avg_sentiment': 0.0  # placeholder, could add sentiment from 4.2
+        })
+    
+    # Now we just need to sort by trending score and put the highest first and then only return the first 5 topics. 
+    trending_topics.sort(key=lambda x: x['trending_score'], reverse=True)
+    return trending_topics[:top_n]
+
+
+# HELPER FUNCTION: GET POSTS BY TOPIC >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+def get_posts_by_topic(topic_id, days=7, limit=20):
+# Now that we have the posts and topics that are trending, I have to create a function to get the recent posts
+# that belong to a topic. when the user clicks on a topic to see the posts, this is used. 
+# This is how the process is: We get all the posts from past 7 days, then classify them and only get the posts 
+# from the topics that have been requested. Then finally we only show 5 posts. 
+    
+    # get database connection
+    db = get_db()
+    # calculate cutoff date
+    cutoff_date = datetime.now() - timedelta(days=days)
+    
+    # query: get all recent posts with user info and engagement counts
+    # we use subqueries to count reactions and comments for each post
+    posts = db.execute("select p.*, u.username,(select count(*) from reactions where post_id = p.id) as reaction_count,(SELECT COUNT(*) from comments where post_id = p.id) as comment_count from posts p join users u ON p.user_id = u.id where p.created_at >= ? order by p.created_at DESC", (cutoff_date,)).fetchall()
+    
+    # filter posts by topic and only keep thoswe that belong to the trending topics. 
+    topic_posts = []
+    for post in posts:
+        post_topic = classify_post_topic(post['content'])    
+        if post_topic == topic_id:
+            topic_posts.append(post)          
+            # If we reach the limit of the number of posts, here 5 posts, we stop the process. 
+            # of courwsew this can easily be changed to get a higher or lower number of posts. 
+            if len(topic_posts) >= limit:
+                break   
+    return topic_posts
+
+
+#>>>>>>>>>>>>>>> end of Trending algorithm >>>>>>>>>>>>>>>>>
+#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 @app.route('/')
 def feed():
@@ -209,6 +448,52 @@ def feed():
                            per_page=POSTS_PER_PAGE, # Pass items per page
                            reaction_emojis=REACTION_EMOJIS,
                            reaction_types=REACTION_TYPES)
+
+#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+#>>>>>>>>>>>>>>>>>>>>>>flask routes>>>>>>>>>>>>>>>>>>>
+
+
+# Trending topic page
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+@app.route('/trending')
+def trending():
+# Now I should hande displaying the main trending topics page. this rout first checks if the user is loged in and 
+# then find the top 5 topics that are most trending in the past 7 days ad finally shows them on trending.html
+    # check if user is logged in session['user_id'] is set when user logs in successfully
+    if 'user_id' not in session:
+        # If the user is not logged in, I send them to login page to login and then show the result. 
+        return redirect(url_for('login'))
+    trending_topics = get_trending_topics(days=7, top_n=5)
+    return render_template('trending.html',trending_topics=trending_topics)
+
+
+# ROUTE 2: TOPIC DETAIL PAGE
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+@app.route('/trending/<int:topic_id>')
+def topic_posts(topic_id):
+# this part handles showing posts that belong to a topic. when a user clicks on a topic in the trending page, 
+#they come here to see those posts from that topic. so, fiorst we check if the users is logged in, then see 
+# if the topic_id is valid and finally get recent posts for that topic and show them. 
+    
+    # check if user is logged in
+    if 'user_id' not in session:
+        # not logged in, send to login page
+        return redirect(url_for('login'))
+    
+    # validate that topic_id is one of our 10 topics (0-9) and the TOPICS is the dictionary defined in trending_algorithm.py
+    if topic_id not in TOPICS:
+        flash('Invalid topic')
+        return redirect(url_for('trending'))
+    topic_name = TOPICS[topic_id]['name']
+    posts = get_posts_by_topic(topic_id, days=7, limit=20)
+    return render_template('topic_posts.html',topic_name=topic_name,posts=posts)
+
+#>>>>>>>>>>>>>>>>>>>>>end of flask routes>>>>>>>>>>>>>
+#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+
+
+
 
 @app.route('/posts/new', methods=['POST'])
 def add_post():
@@ -873,6 +1158,9 @@ def loop_color(user_id):
     g = int(h[2:4], 16)
     b = int(h[4:6], 16)
     return f'rgb({r % 128 + 80}, {g % 128 + 80}, {b % 128 + 80})'
+
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 
 

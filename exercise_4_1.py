@@ -49,7 +49,7 @@ print("Extracting data from database")
 DATABASE = 'database.sqlite'
 conn = sqlite3.connect(DATABASE)
 cursor = conn.cursor()
-cursor.execute("SELECT id, content from posts where content IS NOT NULL")
+cursor.execute("select id, content from posts where content IS NOT NULL")
 posts = cursor.fetchall()
 
 #Now we do the same for the comments and get all the comments as well. 
@@ -58,9 +58,9 @@ comments = cursor.fetchall()
 conn.close()
 
 # for the sake of information, I show how m,any posts and how many comments I found. 
-print(f"✓ Found and copied the content of {len(posts)} posts")
-print(f"✓ found {len(comments)} comments and got their content too")
-print(f"✓ Now i have to analyze {len(posts) + len(comments)} contents.")
+print(f" Found and copied the content of {len(posts)} posts")
+print(f" found {len(comments)} comments and got their content too")
+print(f"Now i have to analyze {len(posts) + len(comments)} contents.")
 print()
 
 #Preparing texts
@@ -123,15 +123,15 @@ print("It will be over soon. Take a sip at your coffee and lay back!")
 processed_documents = []
 for i, doc in enumerate(documents):
     if (i + 1) % 1000 == 0:
-        print(f"  Processed {i + 1}/{len(documents)} documents...")
+        print(f"Processed {i + 1}/{len(documents)} documents...")
     tokens = preprocess_text(doc)
 # the documents that have less than 2 meaningful words /tokens are ignored. 
     #if len(tokens) >= 2:   # when this is set to 2, the percentages change and I'll mention it in my report
     # but it's an interesting observation because it adds around 170 words to the list f words and they change the proportions. 
     if len(tokens) >= 3:
         processed_documents.append(tokens)
-print(f"✓ Preprocessing complete!")
-print(f"✓ We have now {len(processed_documents)} to create a dictionary.")
+print(f"Preprocessing complete!")
+print(f"We have now {len(processed_documents)} to create a dictionary.")
 
 # dictionary and corpus
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -143,20 +143,20 @@ dictionary = corpora.Dictionary(processed_documents)
 ## we have to remove the words that arte either too common or too rare becuse they are some kind of noise. 
 # none of them can help us distinguish between topics. 
 print("Filtering dictionary...")
-print(f"  Before filtering there were {len(dictionary)} unique words")
+print(f"Before filtering there were {len(dictionary)} unique words")
 dictionary.filter_extremes(no_below=5, no_above=0.5)
-print(f"  After filtering the words that were too common or too rare, we have {len(dictionary)} unique words")
+print(f"After filtering the words that were too common or too rare, we have {len(dictionary)} unique words")
 
 corpus = [dictionary.doc2bow(doc) for doc in processed_documents]
-print(f"✓ Now we have a dictionary with {len(dictionary)} unique words")
-print(f"✓ We have a corpus with {len(corpus)} documents")
+print(f"Now we have a dictionary with {len(dictionary)} unique words")
+print(f"We have a corpus with {len(corpus)} documents")
 
 
 # STEP 5: Training LDA model
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 print("STEP 5: Training LDA model to find 10 topics")
-print("  Number of topics: 10")
-print("  Passes: 15")
+print(" Number of topics: 10")
+print(" Passes: 15")
 print("This will take a few minutes... Finish that coffee...")
 
 lda_model = LdaModel(
@@ -177,7 +177,7 @@ print("Analyzing discovered topics ...")
 # here i give the topics and some most important words
 topics = lda_model.print_topics(num_words=10)
 
-print("🔍 Discovered topics:")
+print("Discovered topics:")
 topic_interpretations = []
 
 for topic_id, topic_words in topics:
@@ -232,17 +232,17 @@ print("Model saved as 'lda_model_10_topics.model'")
 dictionary.save('lda_dictionary.dict')
 print("Dictionary saved as 'lda_dictionary.dict'")
 
-# save human-readable results to a text file
+# At last, I save the result ion a text file and made it easier to understand.
 with open('topic_analysis_results.txt', 'w', encoding='utf-8') as f:
     f.write("dicovered topics:\n")
-    f.write(">" * 70 + "\n\n")
+    f.write(">" * 40 + "\n\n")
     
     for topic_id, topic_words in topics:
         f.write(f"TOPIC {topic_id + 1}:\n")
         f.write(f"{topic_words}\n\n")
     
     f.write("\nPopularity of topics:\n")
-    f.write(">" * 70 + "\n\n")
+    f.write(">" * 40 + "\n\n")
     
     for rank, (topic_id, count) in enumerate(sorted_topics, 1):
         percentage = (count / len(corpus)) * 100

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trending Topics - Mini Social</title>
+    <style>
+        /* 
+           Basics
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box; 
+        }
+
+        body {
+            
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: #f0f2f5;  /* light gray background like Facebook */
+            padding-top: 60px;     /* space for fixed navbar */
+        }
+
+        /* 
+           Navigation bar
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+        
+        nav {
+            background: white;
+            padding: 15px 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);  /* subtle shadow */
+            position: fixed;     /* stays at top when scrolling */
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;      
+            display: flex;       /* flexbox for layout */
+            justify-content: space-between; 
+            align-items: center; 
+        }
+
+        nav a {
+            color: #1877f2;    
+            text-decoration: none;
+            margin: 0 15px;
+            font-weight: 500;
+        }
+
+        nav a:hover {
+            text-decoration: underline;
+        }
+
+        /* 
+           main container
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+        
+        .container {
+            max-width: 800px;    
+            margin: 20px auto;  
+            padding: 0 20px;    
+        }
+
+        /* 
+           Page header
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+        
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;  
+            margin-bottom: 20px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            color: #1c1e21;     
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #65676b;    
+            font-size: 15px;
+        }
+
+        /* 
+           Trending topics
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+        
+        .trending-card {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            cursor: pointer;                        
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .trending-card:hover {
+            transform: translateY(-2px);  /* move up 2px */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);  /* bigger shadow */
+        }
+
+        /* 
+           topic rank badge
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+        .topic-rank {
+            display: inline-block;
+            background: #1877f2; 
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;  
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        /* 
+           topic info
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+        
+        .topic-name {
+            font-size: 22px;
+            font-weight: 600;
+            color: #1c1e21;
+            margin-bottom: 10px;
+        }
+        .topic-keywords {
+            color: #65676b; 
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        /* 
+           topic statistics
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+        
+        .topic-stats {
+            display: flex;
+            gap: 20px;         
+            flex-wrap: wrap;     
+        }
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 5px;     
+            color: #65676b;     
+            font-size: 14px;
+        }
+
+        .stat-number {
+            color: #1877f2;    
+            font-weight: 600;   
+        }
+
+        /* 
+           trending badge
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+        
+        /* displays the calculated trending score */
+        .trending-score {
+            background: #e7f3ff;  
+            color: #1877f2;     
+            padding: 8px 16px;
+            border-radius: 20px; 
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 10px;
+            display: inline-block;
+        }
+
+        
+        /* shown when there are no trending topics yet */
+        .no-trends {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            text-align: center;
+            color: #65676b;
+        }
+
+        /* 
+           emoji style
+           >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+        
+        .emoji {
+            font-size: 20px;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 
+         navigation bar
+         >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> -->
+    <nav>
+        <!-- left side: main navigation links -->
+        <div>
+            <a href="/">Mini Social</a>
+            <a href="/feed">Feed</a>
+            <a href="/trending">🔥 Trending</a>
+        </div>
+        
+        <!-- right side: user info and logout -->
+        <div>
+            <!-- session.username is the logged-in user's name -->
+            <span>Hello, {{ session.username }}!</span>
+            <a href="/logout">Logout</a>
+        </div>
+    </nav>
+
+    <!-- 
+         main content container
+         >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> -->
+    <div class="container">
+        <div class="header">
+            <h1>🔥 Trending Topics</h1>
+            <p>Discover what's hot on Mini Social this week</p>
+        </div>
+
+        
+        {% if trending_topics %}
+            
+            {% for topic in trending_topics %}
+            <div class="trending-card" onclick="window.location.href='/trending/{{ topic.topic_id }}'">
+                <div class="topic-rank">#{{ loop.index }}</div>
+                <div class="topic-name">{{ topic.topic_name }}</div>
+                <div class="topic-keywords">
+                    <span class="emoji">🏷️</span>
+                    {{ topic.keywords|join(', ') }}
+                </div>
+                <div class="topic-stats">
+                    <!-- number of posts -->
+                    <div class="stat">
+                        <span class="emoji">📝</span>
+                        <span class="stat-number">{{ topic.post_count }}</span> posts
+                    </div>
+                    
+                    <!-- number of reactions -->
+                    <div class="stat">
+                        <span class="emoji">❤️</span>
+                        <span class="stat-number">{{ topic.total_reactions }}</span> reactions
+                    </div>
+                    
+                    <!-- number of comments -->
+                    <div class="stat">
+                        <span class="emoji">💬</span>
+                        <span class="stat-number">{{ topic.total_comments }}</span> comments
+                    </div>
+                </div>
+                
+                <!-- trending score -->
+                <!-- "%.1f"|format() formats number to 1 decimal place -->
+                <div class="trending-score">
+                    🔥 Trending Score: {{ "%.1f"|format(topic.trending_score) }}
+                </div>
+            </div>
+            {% endfor %}
+            
+        {% else %}
+            <!-- no trending topics found -->
+            <div class="no-trends">
+                <h2>No trending topics yet</h2>
+                <p>Check back soon as more people post!</p>
+            </div>
+        {% endif %}
+        
+    </div>
+</body>
+</html>
